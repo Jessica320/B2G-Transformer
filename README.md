@@ -1,4 +1,6 @@
 <div align="center">
+   B2G 高碳排資產轉型潛力估值與交易平台
+   是一個用 AI 衡量高碳資產轉型價值，並促成綠能投資交易的平台!
    <img width="1891" height="919" alt="image" src="https://github.com/user-attachments/assets/58982f77-f19c-4980-920c-28afe7ea8e5e" />
 <img width="1883" height="899" alt="image" src="https://github.com/user-attachments/assets/7595f2dd-01be-4ba8-863c-412e7f8fba38" />
 <img width="1888" height="928" alt="image" src="https://github.com/user-attachments/assets/251e844b-1f19-49df-aaac-1c738237372f" />
