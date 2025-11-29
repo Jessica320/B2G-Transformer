@@ -1,3 +1,4 @@
+
 export interface AssetValuationRequest {
   assetType: string;
   location: string;
@@ -12,6 +13,8 @@ export interface GeoAnalysis {
   gridDistance: string; // e.g. "< 500m"
   roofCondition: string; // e.g. "平頂水泥，結構良好"
   climateRisk: string; // e.g. "低淹水風險"
+  sunlightHours: string; // 日照時數
+  gridCapacity: string; // 饋線容量餘裕
 }
 
 export interface FinancialAnalysis {
@@ -21,20 +24,24 @@ export interface FinancialAnalysis {
   revenueStreams: string[]; // 收入來源
 }
 
-export interface TransformationReport {
-  strategyName: string;
+export interface Scenario {
+  id: string;
+  name: string; // e.g. "方案 A: 屋頂光電"
   description: string;
-  originalValue: string;
-  projectedValue: string;
   irr: string;
-  carbonReduction: string;
-  constructionPeriod: string;
   roiPeriod: string;
+  capex: string;
+  carbonReduction: string;
+  financials: FinancialAnalysis;
+}
+
+export interface TransformationReport {
+  originalValue: string;
+  projectedValue: string; // 最佳方案的估值
+  bestScenarioId: string;
   policyIncentives: string[];
-  
-  // New detailed sections
   geoAnalysis: GeoAnalysis;
-  financialAnalysis: FinancialAnalysis;
+  scenarios: Scenario[]; // 多個方案供比較
 }
 
 export interface MarketplaceItem {

@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-b2g-asset-transformer",
+  "name": "b2g-asset-transformer",
   "private": true,
   "version": "0.0.0",
   "type": "module",

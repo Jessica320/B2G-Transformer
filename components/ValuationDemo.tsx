@@ -1,19 +1,20 @@
+
 import React, { useState, useEffect } from 'react';
 import { generateValuationReport } from '../services/geminiService';
-import { AssetValuationRequest, TransformationReport, AnalysisStatus } from '../types';
+import { AssetValuationRequest, TransformationReport, AnalysisStatus, Scenario } from '../types';
 import { 
   Loader2, Zap, Building2, Map, Scale, BarChart3, 
-  ArrowRight, Trees, FileCheck, CheckCircle2, Sun, AlertCircle, MapPin 
+  ArrowRight, Trees, AlertCircle, MapPin, Check, MousePointerClick, TrendingUp
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell 
+  ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, Area
 } from 'recharts';
 import { TaiwanHeatmap } from './TaiwanHeatmap';
 
 export const ValuationDemo: React.FC = () => {
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [report, setReport] = useState<TransformationReport | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'geo' | 'finance'>('overview');
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   
   // User Location State for Map
   const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
@@ -27,15 +28,14 @@ export const ValuationDemo: React.FC = () => {
     avgPowerBill: '20 萬/月'
   });
 
-  // Mock Geocoding Logic for demo experience
+  // Mock Geocoding Logic
   useEffect(() => {
     const loc = formData.location;
-    if (loc.includes('觀音')) setUserCoords({ lat: 25.045, lng: 121.140 }); // Taoyuan
-    else if (loc.includes('彰化') || loc.includes('濱海')) setUserCoords({ lat: 24.110, lng: 120.430 }); // Changhua
-    else if (loc.includes('大社') || loc.includes('高雄')) setUserCoords({ lat: 22.730, lng: 120.355 }); // Kaohsiung
-    else if (loc.includes('五股') || loc.includes('新北')) setUserCoords({ lat: 25.070, lng: 121.455 }); // New Taipei
-    else if (loc.includes('台中') || loc.includes('精密')) setUserCoords({ lat: 24.145, lng: 120.600 }); // Taichung
-    // Don't reset to null automatically to allow manual map picking to persist
+    if (loc.includes('觀音')) setUserCoords({ lat: 25.045, lng: 121.140 }); 
+    else if (loc.includes('彰化') || loc.includes('濱海')) setUserCoords({ lat: 24.110, lng: 120.430 });
+    else if (loc.includes('大社') || loc.includes('高雄')) setUserCoords({ lat: 22.730, lng: 120.355 }); 
+    else if (loc.includes('五股') || loc.includes('新北')) setUserCoords({ lat: 25.070, lng: 121.455 }); 
+    else if (loc.includes('台中') || loc.includes('精密')) setUserCoords({ lat: 24.145, lng: 120.600 });
   }, [formData.location]);
 
   const handleMapSelect = (lat: number, lng: number, address: string) => {
@@ -44,7 +44,6 @@ export const ValuationDemo: React.FC = () => {
   };
 
   const handleAnalyze = async () => {
-    // Reset state
     setReport(null);
     if (!formData.location) {
         alert("請輸入或在地圖上選擇資產位置");
@@ -52,22 +51,23 @@ export const ValuationDemo: React.FC = () => {
     }
     
     try {
-        // Step 1: Geo Scan
+        // Step 1: Scanning (Faster animation)
         setStatus(AnalysisStatus.SCANNING_GEO);
-        const apiPromise = generateValuationReport(formData); // Start request in parallel
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Minimum visual delay
-
+        const apiPromise = generateValuationReport(formData);
+        
+        await new Promise(resolve => setTimeout(resolve, 800)); 
+        
         // Step 2: Policy Check
         setStatus(AnalysisStatus.CHECKING_POLICY);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Step 3: Finance Calc
+        await new Promise(resolve => setTimeout(resolve, 600));
+        
+        // Step 3: Financial Sim
         setStatus(AnalysisStatus.CALCULATING_FINANCE);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Finalize
+        await new Promise(resolve => setTimeout(resolve, 600));
+        
         const result = await apiPromise;
         setReport(result);
+        setActiveScenarioId(result.bestScenarioId); // Default to best scenario
         setStatus(AnalysisStatus.COMPLETE);
 
     } catch (error) {
@@ -76,29 +76,18 @@ export const ValuationDemo: React.FC = () => {
     }
   };
 
-  const getStatusMessage = () => {
-    switch(status) {
-      case AnalysisStatus.SCANNING_GEO: return "正在進行 Geo-AI 衛星圖資掃描...";
-      case AnalysisStatus.CHECKING_POLICY: return "比對地籍資料與再生能源法規...";
-      case AnalysisStatus.CALCULATING_FINANCE: return "執行蒙地卡羅財務模擬...";
-      default: return "處理中...";
-    }
-  };
+  const activeScenario = report?.scenarios.find(s => s.id === activeScenarioId) || report?.scenarios[0];
 
-  const getProgress = () => {
-    switch(status) {
-      case AnalysisStatus.SCANNING_GEO: return 33;
-      case AnalysisStatus.CHECKING_POLICY: return 66;
-      case AnalysisStatus.CALCULATING_FINANCE: return 90;
-      default: return 0;
-    }
-  };
-
-  // Prepare chart data safely
-  const chartData = report?.financialAnalysis.yearlyCashFlow.map((val, idx) => ({
-    year: `Y${idx + 1}`,
-    cashflow: val
-  })) || [];
+  // Prepare composed chart data: Cash Flow + Cumulative NPV
+  const chartData = activeScenario?.financials.yearlyCashFlow.reduce((acc: any[], val, idx) => {
+      const prevCumulative = idx > 0 ? acc[idx - 1].cumulative : 0;
+      acc.push({
+          year: idx === 0 ? '建置期' : `Y${idx}`,
+          cashflow: val,
+          cumulative: prevCumulative + val
+      });
+      return acc;
+  }, []) || [];
 
   return (
     <section id="demo" className="py-24 bg-slate-50 scroll-mt-24">
@@ -107,15 +96,15 @@ export const ValuationDemo: React.FC = () => {
           <span className="text-green-600 font-bold tracking-wider text-sm uppercase">AI Core Engine</span>
           <h2 className="text-3xl lg:text-4xl font-bold text-slate-900 mt-2 mb-4">B2G 轉型潛力估值引擎</h2>
           <p className="text-slate-600 max-w-2xl mx-auto">
-            輸入資產位置，即刻比對 <span className="font-bold text-slate-900">國家級工業區資料庫</span>，
-            啟動 Geo-AI 空間分析與財務預測。
+             整合 <span className="font-bold text-slate-900">衛星影像 Geo-AI</span> 與 <span className="font-bold text-slate-900">多情境財務模擬</span>，
+             為您的資產客製化最佳轉型路徑。
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-8 max-w-7xl mx-auto items-stretch min-h-[600px]">
+        <div className="grid lg:grid-cols-12 gap-6 max-w-[1400px] mx-auto items-stretch min-h-[750px]">
           
           {/* Left: Input Form */}
-          <div className="lg:col-span-4 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 flex flex-col z-10 h-full">
+          <div className="lg:col-span-4 bg-white p-6 rounded-2xl shadow-xl border border-slate-200 flex flex-col z-10">
             <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
               <div className="p-2 bg-green-100 rounded-lg text-green-700">
                 <Building2 className="w-5 h-5" />
@@ -124,6 +113,50 @@ export const ValuationDemo: React.FC = () => {
             </div>
             
             <div className="space-y-4 flex-1">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">地理位置</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="輸入地址或點擊右側地圖..."
+                    className="w-full p-3 pl-9 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm font-medium"
+                    value={formData.location}
+                    onChange={(e) => setFormData({...formData, location: e.target.value})}
+                  />
+                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                </div>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    {['桃園觀音', '彰化濱海', '高雄大社', '新北五股', '台中精密'].map(loc => (
+                        <button 
+                            key={loc}
+                            onClick={() => setFormData({...formData, location: loc})}
+                            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-xs text-slate-600 rounded-full whitespace-nowrap transition-colors"
+                        >
+                            {loc}
+                        </button>
+                    ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">土地坪數</label>
+                    <input 
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm"
+                      value={formData.area}
+                      onChange={(e) => setFormData({...formData, area: e.target.value})}
+                    />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">屋齡</label>
+                    <input 
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm"
+                      value={formData.buildingAge}
+                      onChange={(e) => setFormData({...formData, buildingAge: e.target.value})}
+                    />
+                </div>
+              </div>
+              
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">資產類型</label>
                 <select 
@@ -139,47 +172,8 @@ export const ValuationDemo: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">地理位置 (輸入或點擊地圖)</label>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="請輸入地址或關鍵字 (如：觀音、大社)"
-                    className="w-full p-3 pl-9 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm"
-                    value={formData.location}
-                    onChange={(e) => setFormData({...formData, location: e.target.value})}
-                  />
-                  <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
-                </div>
-                <div className="mt-2 text-xs text-slate-400">
-                    * 支援關鍵字定位：試試輸入 "觀音"、"大社" 或 "五股"
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">土地坪數</label>
-                    <input 
-                      type="text" 
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm"
-                      value={formData.area}
-                      onChange={(e) => setFormData({...formData, area: e.target.value})}
-                    />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">屋齡</label>
-                    <input 
-                      type="text" 
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm"
-                      value={formData.buildingAge}
-                      onChange={(e) => setFormData({...formData, buildingAge: e.target.value})}
-                    />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">現況用途 / 電費</label>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">目前用途 / 電費</label>
                 <input 
-                  type="text" 
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 outline-none text-sm"
                   value={formData.currentUsage}
                   onChange={(e) => setFormData({...formData, currentUsage: e.target.value})}
@@ -205,249 +199,218 @@ export const ValuationDemo: React.FC = () => {
                      <Zap className="w-5 h-5 fill-yellow-400 text-yellow-400" />
                   )}
                   {status === AnalysisStatus.ERROR ? '分析失敗，請重試' : 
-                   (status === AnalysisStatus.IDLE || status === AnalysisStatus.COMPLETE ? '啟動 AI 估值模擬' : 'AI 分析運算中...')}
+                   (status === AnalysisStatus.IDLE || status === AnalysisStatus.COMPLETE ? '啟動 Geo-AI 估值模擬' : 'AI 分析運算中...')}
                 </button>
             </div>
           </div>
 
-          {/* Right: Visualization & Results */}
-          <div className="lg:col-span-8 flex flex-col h-full min-h-[600px]">
+          {/* Right: Map & Results Area */}
+          <div className="lg:col-span-8 flex flex-col h-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden relative">
             
-            {/* 1. Map View (Idle State) */}
-            {status === AnalysisStatus.IDLE && (
-                <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden flex flex-col relative">
-                    <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-4 py-2 rounded-lg border border-slate-200 shadow-sm">
-                        <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                            <Map className="w-4 h-4 text-green-600" />
-                            工業區地理位置檢核
-                        </h4>
-                        <p className="text-xs text-slate-500">請在左側輸入位置或直接點擊地圖</p>
-                    </div>
-                    <TaiwanHeatmap 
-                        userLocation={userCoords} 
-                        onLocationSelect={handleMapSelect}
-                        className="flex-1"
-                    />
-                </div>
-            )}
+            {/* 1. Map Layer (Always Visible in BG) */}
+            <div className={`absolute inset-0 z-0 transition-all duration-700 ${status === AnalysisStatus.COMPLETE ? 'h-[35%] border-b border-slate-700' : 'h-full'}`}>
+                 <TaiwanHeatmap 
+                    userLocation={userCoords} 
+                    onLocationSelect={handleMapSelect}
+                    isScanning={status === AnalysisStatus.SCANNING_GEO}
+                    className="h-full"
+                 />
+                 
+                 {/* Map Overlay Info has been removed as requested */}
+            </div>
 
-            {/* 2. Loading State */}
+            {/* 2. Loading Overlay */}
             {status !== AnalysisStatus.IDLE && status !== AnalysisStatus.COMPLETE && status !== AnalysisStatus.ERROR && (
-              <div className="flex-1 bg-white rounded-2xl p-8 shadow-2xl border border-slate-200 flex flex-col items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-50"></div>
-                <div className="relative z-10 w-full max-w-md text-center space-y-8">
-                  <div className="relative w-32 h-32 mx-auto">
-                    <div className="absolute inset-0 border-4 border-slate-100 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-t-green-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                    <div className="absolute inset-4 bg-slate-50 rounded-full flex items-center justify-center shadow-inner">
-                      {status === AnalysisStatus.SCANNING_GEO && <Map className="w-10 h-10 text-green-600 animate-pulse" />}
-                      {status === AnalysisStatus.CHECKING_POLICY && <Scale className="w-10 h-10 text-blue-600 animate-pulse" />}
-                      {status === AnalysisStatus.CALCULATING_FINANCE && <BarChart3 className="w-10 h-10 text-purple-600 animate-pulse" />}
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm">
+                    <div className="bg-black/40 p-8 rounded-2xl border border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.2)] text-center max-w-sm w-full mx-4 backdrop-blur-md">
+                        <div className="relative w-20 h-20 mx-auto mb-6">
+                            <div className="absolute inset-0 border-t-2 border-green-500 rounded-full animate-spin"></div>
+                            <div className="absolute inset-2 border-r-2 border-blue-500 rounded-full animate-spin [animation-duration:1.5s]"></div>
+                            <div className="absolute inset-0 flex items-center justify-center text-white">
+                                {status === AnalysisStatus.SCANNING_GEO && <Map className="w-8 h-8 text-green-400" />}
+                                {status === AnalysisStatus.CHECKING_POLICY && <Scale className="w-8 h-8 text-blue-400" />}
+                                {status === AnalysisStatus.CALCULATING_FINANCE && <BarChart3 className="w-8 h-8 text-purple-400" />}
+                            </div>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">
+                             {status === AnalysisStatus.SCANNING_GEO && "衛星圖資掃描與建模..."}
+                             {status === AnalysisStatus.CHECKING_POLICY && "土地法規與饋線檢核..."}
+                             {status === AnalysisStatus.CALCULATING_FINANCE && "多重情境財務模擬..."}
+                        </h3>
+                        <p className="text-slate-400 text-sm font-mono">{status === AnalysisStatus.SCANNING_GEO ? 'Analyzing roof structure...' : status === AnalysisStatus.CHECKING_POLICY ? 'Matching zoning laws...' : 'Simulating Cash Flow...'}</p>
                     </div>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-slate-800 mb-2">{getStatusMessage()}</h3>
-                    <p className="text-slate-500">正在處理數據...</p>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="bg-green-500 h-full transition-all duration-700 ease-out"
-                      style={{ width: `${getProgress()}%` }}
-                    ></div>
-                  </div>
                 </div>
-              </div>
-            )}
-            
-            {/* 3. Error State */}
-            {status === AnalysisStatus.ERROR && (
-               <div className="flex-1 bg-red-50 rounded-2xl border border-red-200 flex flex-col items-center justify-center p-12 text-center">
-                  <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                     <AlertCircle className="w-10 h-10 text-red-500" />
-                  </div>
-                  <h3 className="text-xl font-bold text-red-800 mb-2">分析發生錯誤</h3>
-                  <p className="text-red-600">請檢查網路連線或稍後再試。</p>
-               </div>
             )}
 
-            {/* 4. Results */}
-            {status === AnalysisStatus.COMPLETE && report && (
-              <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-full animate-fade-in-up">
-                
-                {/* Header */}
-                <div className="bg-slate-900 text-white p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-1">AI Recommendation</div>
-                    <h2 className="text-2xl font-bold">{report.strategyName}</h2>
-                  </div>
-                  <div className="flex items-center gap-4">
-                     <div className="text-right">
-                        <div className="text-xs text-slate-400 uppercase">預估 IRR</div>
-                        <div className="text-2xl font-bold text-green-400">{report.irr}</div>
-                     </div>
-                     <div className="w-px h-10 bg-slate-700"></div>
-                     <div className="text-right">
-                        <div className="text-xs text-slate-400 uppercase">淨現值 NPV</div>
-                        <div className="text-xl font-bold text-white">{report.financialAnalysis.npv}</div>
-                     </div>
-                  </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex border-b border-slate-100 bg-slate-50">
-                  <button 
-                    onClick={() => setActiveTab('overview')}
-                    className={`flex-1 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-green-500 text-green-600 bg-white' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
-                  >
-                    總覽報告
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('geo')}
-                    className={`flex-1 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'geo' ? 'border-blue-500 text-blue-600 bg-white' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
-                  >
-                    Geo-AI 與地圖
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('finance')}
-                    className={`flex-1 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === 'finance' ? 'border-purple-500 text-purple-600 bg-white' : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
-                  >
-                    財務模型
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto max-h-[600px]">
-                  
-                  {activeTab === 'overview' && (
-                    <div className="p-6 space-y-6">
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                        <p className="text-slate-700 leading-relaxed">{report.description}</p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                         <div className="p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
-                            <div className="text-sm text-slate-500 mb-1">現有資產估值</div>
-                            <div className="text-lg font-bold text-slate-700 line-through decoration-slate-400">{report.originalValue}</div>
-                         </div>
-                         <div className="p-4 rounded-xl border border-green-200 bg-green-50 shadow-sm">
-                            <div className="text-sm text-green-700 mb-1 font-bold">轉型後估值</div>
-                            <div className="text-2xl font-bold text-green-700">{report.projectedValue}</div>
-                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                         <div className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-lg">
-                            <div className="p-2 bg-blue-100 rounded text-blue-600"><Trees className="w-5 h-5"/></div>
-                            <div>
-                                <div className="text-xs text-slate-500">年減碳量</div>
-                                <div className="font-bold text-slate-800">{report.carbonReduction}</div>
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-lg">
-                            <div className="p-2 bg-amber-100 rounded text-amber-600"><Zap className="w-5 h-5"/></div>
-                            <div>
-                                <div className="text-xs text-slate-500">回本期</div>
-                                <div className="font-bold text-slate-800">{report.roiPeriod}</div>
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-lg">
-                            <div className="p-2 bg-purple-100 rounded text-purple-600"><Scale className="w-5 h-5"/></div>
-                            <div>
-                                <div className="text-xs text-slate-500">建設期</div>
-                                <div className="font-bold text-slate-800">{report.constructionPeriod}</div>
-                            </div>
-                         </div>
-                      </div>
+            {/* 3. Results Panel */}
+            {status === AnalysisStatus.COMPLETE && report && activeScenario && (
+                <div className="absolute bottom-0 left-0 right-0 h-[65%] bg-slate-50 flex flex-col z-30 animate-fade-in-up shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+                    
+                    {/* Scenario Tabs */}
+                    <div className="flex overflow-x-auto border-b border-slate-200 bg-white px-6 pt-6 gap-3 pb-0 sticky top-0 z-10 scrollbar-hide">
+                        {report.scenarios.map((scenario) => (
+                            <button
+                                key={scenario.id}
+                                onClick={() => setActiveScenarioId(scenario.id)}
+                                className={`flex-1 min-w-[180px] p-4 rounded-t-xl border-t border-x border-b-0 text-left transition-all relative group
+                                    ${activeScenarioId === scenario.id 
+                                        ? 'bg-slate-50 border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] translate-y-[1px]' 
+                                        : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-50'
+                                    }
+                                `}
+                            >
+                                {activeScenarioId === scenario.id && <div className="absolute top-0 left-0 w-full h-1 bg-green-500 rounded-t-xl"></div>}
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">{scenario.id === report.bestScenarioId ? 'AI 推薦方案' : `方案 ${scenario.id}`}</div>
+                                    {scenario.id === report.bestScenarioId && <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" />}
+                                </div>
+                                <div className={`font-bold text-base line-clamp-1 ${activeScenarioId === scenario.id ? 'text-slate-900' : 'text-slate-500'}`}>{scenario.name}</div>
+                                <div className="flex items-end gap-2 mt-1">
+                                    <span className="text-sm font-bold text-green-600">IRR {scenario.irr}</span>
+                                    <span className="text--[10px] text-slate-400 pb-0.5">NPV {scenario.financials.npv}</span>
+                                </div>
+                            </button>
+                        ))}
                     </div>
-                  )}
 
-                  {activeTab === 'geo' && (
-                    <div className="flex flex-col h-full">
-                        <div className="h-64 relative border-b border-slate-200">
-                             <TaiwanHeatmap userLocation={userCoords} className="h-full" />
-                             <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 text-xs rounded shadow text-slate-600 font-bold z-[1000]">
-                                資產位置分析
-                             </div>
-                        </div>
-                        <div className="p-6 space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                    <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold">
-                                        <Sun className="w-5 h-5" /> 太陽能潛力
-                                    </div>
-                                    <div className="text-2xl font-bold text-slate-900">{report.geoAnalysis.solarPotential}</div>
-                                </div>
-                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-2 mb-2 text-slate-800 font-bold">
-                                        <Zap className="w-5 h-5 text-yellow-500" /> 電網饋線
-                                    </div>
-                                    <div className="text-2xl font-bold text-slate-900">{report.geoAnalysis.gridDistance}</div>
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-5 rounded-xl border border-slate-200">
-                                <h4 className="font-bold text-slate-900 mb-4">場域細部評估</h4>
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="text-sm text-slate-500 mb-1">屋頂結構狀況</div>
-                                        <div className="font-medium text-slate-800">{report.geoAnalysis.roofCondition}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-sm text-slate-500 mb-1">氣候風險評級</div>
-                                        <div className="flex items-center gap-2">
-                                            <AlertCircle className="w-4 h-4 text-amber-500" />
-                                            <span className="font-medium text-slate-800">{report.geoAnalysis.climateRisk}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'finance' && (
-                    <div className="p-6 space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="text-xs text-slate-500 mb-1">預估 CAPEX</div>
-                                <div className="text-xl font-bold text-slate-900">{report.financialAnalysis.capexEstimate}</div>
-                             </div>
-                             <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-                                <div className="text-xs text-green-800 mb-1">預估 NPV</div>
-                                <div className="text-xl font-bold text-green-700">{report.financialAnalysis.npv}</div>
-                             </div>
-                        </div>
-
-                        <div className="bg-white border border-slate-200 rounded-xl p-4">
-                            <h4 className="font-bold text-slate-800 mb-4 text-sm">未來 10 年累計現金流預測</h4>
-                            <div className="h-[200px] w-full min-h-[200px]">
+                    {/* Dashboard Content */}
+                    <div className="flex-1 overflow-y-auto p-6 grid lg:grid-cols-2 gap-8">
+                        
+                        {/* Financial Chart */}
+                        <div className="flex flex-col min-h-[300px]">
+                            <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                <TrendingUp className="w-5 h-5 text-green-600" />
+                                20 年財務模擬：現金流與回本點
+                            </h4>
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-1">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={chartData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="year" fontSize={10} tickLine={false} axisLine={false} />
-                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}M`} />
-                                        <RechartsTooltip />
-                                        <Bar dataKey="cashflow" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                                    </BarChart>
+                                    <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+                                        <defs>
+                                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
+                                                <stop offset="95%" stopColor="#15803d" stopOpacity={0.9}/>
+                                            </linearGradient>
+                                            <filter id="lineShadow" height="130%">
+                                                <feDropShadow dx="1" dy="2" stdDeviation="2" floodColor="#d97706" floodOpacity="0.3" />
+                                            </filter>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="year" fontSize={11} tickLine={false} axisLine={false} tick={{fill: '#64748b'}} />
+                                        <YAxis 
+                                            yAxisId="left" 
+                                            fontSize={11} 
+                                            tickLine={false} 
+                                            axisLine={false} 
+                                            tickFormatter={(val) => `$${val}w`} 
+                                            tick={{fill: '#15803d'}}
+                                        />
+                                        <YAxis 
+                                            yAxisId="right" 
+                                            orientation="right" 
+                                            fontSize={11} 
+                                            tickLine={false} 
+                                            axisLine={false} 
+                                            tickFormatter={(val) => `$${val}w`}
+                                            tick={{fill: '#d97706'}}
+                                        />
+                                        <RechartsTooltip 
+                                            contentStyle={{ 
+                                                backgroundColor: 'rgba(15, 23, 42, 0.9)', 
+                                                borderRadius: '8px', 
+                                                border: 'none', 
+                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)',
+                                                color: '#fff'
+                                            }}
+                                            itemStyle={{ color: '#fff', fontSize: '13px', padding: '2px 0' }}
+                                            formatter={(value: any, name: any) => [`$${value} 萬`, name]}
+                                            labelStyle={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}
+                                        />
+                                        <Legend 
+                                            wrapperStyle={{ fontSize: '12px', paddingTop: '15px' }} 
+                                            iconType="circle"
+                                        />
+                                        <Bar 
+                                            yAxisId="left" 
+                                            dataKey="cashflow" 
+                                            name="年度現金流" 
+                                            fill="url(#barGradient)" 
+                                            radius={[4, 4, 0, 0]} 
+                                            maxBarSize={40} 
+                                        />
+                                        <Line 
+                                            yAxisId="right" 
+                                            type="monotone" 
+                                            dataKey="cumulative" 
+                                            name="累計損益" 
+                                            stroke="#d97706" 
+                                            strokeWidth={3} 
+                                            dot={{ r: 0 }} 
+                                            activeDot={{ r: 6, strokeWidth: 0 }}
+                                            style={{ filter: 'url(#lineShadow)' }}
+                                        />
+                                    </ComposedChart>
                                 </ResponsiveContainer>
                             </div>
                         </div>
 
-                        <div>
-                            <h4 className="font-bold text-slate-800 mb-2 text-sm">主要收入來源</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {report.financialAnalysis.revenueStreams.map((stream, idx) => (
-                                    <span key={idx} className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded">
-                                        {stream}
-                                    </span>
-                                ))}
+                        {/* Details & Geo Stats */}
+                        <div className="space-y-6">
+                            
+                            {/* Key Metrics */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
+                                    <div className="text-xs text-slate-500 mb-1">預估 CAPEX</div>
+                                    <div className="text-xl font-bold text-slate-900 group-hover:text-green-700">{activeScenario.capex}</div>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
+                                    <div className="text-xs text-slate-500 mb-1">投資回收期</div>
+                                    <div className="text-xl font-bold text-slate-900 group-hover:text-green-700">{activeScenario.roiPeriod}</div>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
+                                    <div className="text-xs text-slate-500 mb-1">年減碳量</div>
+                                    <div className="text-xl font-bold text-green-600">{activeScenario.carbonReduction}</div>
+                                </div>
+                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
+                                    <div className="text-xs text-slate-500 mb-1">淨現值 (NPV)</div>
+                                    <div className="text-xl font-bold text-green-600">{activeScenario.financials.npv}</div>
+                                </div>
                             </div>
+
+                            {/* Geo-AI Insights */}
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                <h5 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-1">
+                                    <Map className="w-3 h-3" /> Geo-AI 現場分析數據
+                                </h5>
+                                <div className="grid grid-cols-2 gap-y-3 text-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">年日照潛力</span>
+                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">{report.geoAnalysis.solarPotential}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pl-2">
+                                        <span className="text-slate-500">電網距離</span>
+                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">{report.geoAnalysis.gridDistance}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500">屋頂結構</span>
+                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">{report.geoAnalysis.roofCondition}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center pl-2">
+                                        <span className="text-slate-500">風險係數</span>
+                                        <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200">{report.geoAnalysis.climateRisk}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <p className="text-sm text-slate-600 leading-relaxed bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                                <span className="font-bold text-blue-800 block mb-1 flex items-center gap-1"><Check className="w-3 h-3"/> 方案說明：</span>
+                                {activeScenario.description}
+                            </p>
                         </div>
+
                     </div>
-                  )}
                 </div>
-              </div>
             )}
+
           </div>
         </div>
       </div>

@@ -1,12 +1,5 @@
 <div align="center">
-   B2G 高碳排資產轉型潛力估值與交易平台
-   是一個用 AI 衡量高碳資產轉型價值，並促成綠能投資交易的平台!
-   <img width="1891" height="919" alt="image" src="https://github.com/user-attachments/assets/58982f77-f19c-4980-920c-28afe7ea8e5e" />
-<img width="1883" height="899" alt="image" src="https://github.com/user-attachments/assets/7595f2dd-01be-4ba8-863c-412e7f8fba38" />
-<img width="1888" height="928" alt="image" src="https://github.com/user-attachments/assets/251e844b-1f19-49df-aaac-1c738237372f" />
-<img width="1889" height="915" alt="image" src="https://github.com/user-attachments/assets/5b59085b-0b89-4d9f-b02a-8b5f5d4c4601" />
-<img width="1897" height="921" alt="image" src="https://github.com/user-attachments/assets/70063ab2-06f6-4385-8a0d-788cb1a33e9a" />
-
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
 # Run and deploy your AI Studio app
