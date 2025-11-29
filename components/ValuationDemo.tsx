@@ -1,20 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { generateValuationReport } from '../services/geminiService';
-import { AssetValuationRequest, TransformationReport, AnalysisStatus, Scenario } from '../types';
+import { AssetValuationRequest, TransformationReport, AnalysisStatus } from '../types';
 import { 
   Loader2, Zap, Building2, Map, Scale, BarChart3, 
-  ArrowRight, Trees, AlertCircle, MapPin, Check, MousePointerClick, TrendingUp
+  MapPin, TrendingUp, Coins, Leaf
 } from 'lucide-react';
 import { 
-  ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, Area
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 import { TaiwanHeatmap } from './TaiwanHeatmap';
 
 export const ValuationDemo: React.FC = () => {
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [report, setReport] = useState<TransformationReport | null>(null);
-  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   
   // User Location State for Map
   const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
@@ -55,7 +54,7 @@ export const ValuationDemo: React.FC = () => {
         setStatus(AnalysisStatus.SCANNING_GEO);
         const apiPromise = generateValuationReport(formData);
         
-        await new Promise(resolve => setTimeout(resolve, 800)); 
+        await new Promise(resolve => setTimeout(resolve, 600)); 
         
         // Step 2: Policy Check
         setStatus(AnalysisStatus.CHECKING_POLICY);
@@ -67,7 +66,6 @@ export const ValuationDemo: React.FC = () => {
         
         const result = await apiPromise;
         setReport(result);
-        setActiveScenarioId(result.bestScenarioId); // Default to best scenario
         setStatus(AnalysisStatus.COMPLETE);
 
     } catch (error) {
@@ -76,18 +74,32 @@ export const ValuationDemo: React.FC = () => {
     }
   };
 
-  const activeScenario = report?.scenarios.find(s => s.id === activeScenarioId) || report?.scenarios[0];
+  // Select the Best Scenario automatically
+  const activeScenario = report?.scenarios.find(s => s.id === report.bestScenarioId) || report?.scenarios[0];
 
   // Prepare composed chart data: Cash Flow + Cumulative NPV
   const chartData = activeScenario?.financials.yearlyCashFlow.reduce((acc: any[], val, idx) => {
       const prevCumulative = idx > 0 ? acc[idx - 1].cumulative : 0;
       acc.push({
-          year: idx === 0 ? '建置期' : `Y${idx}`,
+          year: idx === 0 ? '建置' : `Y${idx}`,
           cashflow: val,
           cumulative: prevCumulative + val
       });
       return acc;
   }, []) || [];
+
+  // Determine gradient offset for green/red based on 0 value
+  const gradientOffset = () => {
+    const dataMax = Math.max(...chartData.map((i) => i.cumulative));
+    const dataMin = Math.min(...chartData.map((i) => i.cumulative));
+  
+    if (dataMax <= 0) return 0;
+    if (dataMin >= 0) return 1;
+  
+    return dataMax / (dataMax - dataMin);
+  };
+  
+  const off = gradientOffset();
 
   return (
     <section id="demo" className="py-24 bg-slate-50 scroll-mt-24">
@@ -207,16 +219,14 @@ export const ValuationDemo: React.FC = () => {
           {/* Right: Map & Results Area */}
           <div className="lg:col-span-8 flex flex-col h-full bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 overflow-hidden relative">
             
-            {/* 1. Map Layer (Always Visible in BG) */}
-            <div className={`absolute inset-0 z-0 transition-all duration-700 ${status === AnalysisStatus.COMPLETE ? 'h-[35%] border-b border-slate-700' : 'h-full'}`}>
+            {/* 1. Map Layer - Fixed height when complete to avoid shrinking */}
+            <div className={`relative w-full transition-all duration-700 ease-in-out z-0 shrink-0 ${status === AnalysisStatus.COMPLETE ? 'h-[300px] border-b border-slate-700' : 'flex-grow min-h-[500px]'}`}>
                  <TaiwanHeatmap 
                     userLocation={userCoords} 
                     onLocationSelect={handleMapSelect}
                     isScanning={status === AnalysisStatus.SCANNING_GEO}
-                    className="h-full"
+                    className="h-full w-full"
                  />
-                 
-                 {/* Map Overlay Info has been removed as requested */}
             </div>
 
             {/* 2. Loading Overlay */}
@@ -237,176 +247,160 @@ export const ValuationDemo: React.FC = () => {
                              {status === AnalysisStatus.CHECKING_POLICY && "土地法規與饋線檢核..."}
                              {status === AnalysisStatus.CALCULATING_FINANCE && "多重情境財務模擬..."}
                         </h3>
-                        <p className="text-slate-400 text-sm font-mono">{status === AnalysisStatus.SCANNING_GEO ? 'Analyzing roof structure...' : status === AnalysisStatus.CHECKING_POLICY ? 'Matching zoning laws...' : 'Simulating Cash Flow...'}</p>
                     </div>
                 </div>
             )}
 
             {/* 3. Results Panel */}
             {status === AnalysisStatus.COMPLETE && report && activeScenario && (
-                <div className="absolute bottom-0 left-0 right-0 h-[65%] bg-slate-50 flex flex-col z-30 animate-fade-in-up shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+                <div className="flex-1 flex flex-col bg-slate-50 z-10 animate-fade-in-up shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
                     
-                    {/* Scenario Tabs */}
-                    <div className="flex overflow-x-auto border-b border-slate-200 bg-white px-6 pt-6 gap-3 pb-0 sticky top-0 z-10 scrollbar-hide">
-                        {report.scenarios.map((scenario) => (
-                            <button
-                                key={scenario.id}
-                                onClick={() => setActiveScenarioId(scenario.id)}
-                                className={`flex-1 min-w-[180px] p-4 rounded-t-xl border-t border-x border-b-0 text-left transition-all relative group
-                                    ${activeScenarioId === scenario.id 
-                                        ? 'bg-slate-50 border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] translate-y-[1px]' 
-                                        : 'bg-slate-100 border-transparent text-slate-500 hover:bg-slate-50'
-                                    }
-                                `}
-                            >
-                                {activeScenarioId === scenario.id && <div className="absolute top-0 left-0 w-full h-1 bg-green-500 rounded-t-xl"></div>}
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="text-[10px] font-bold uppercase tracking-wider opacity-70">{scenario.id === report.bestScenarioId ? 'AI 推薦方案' : `方案 ${scenario.id}`}</div>
-                                    {scenario.id === report.bestScenarioId && <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" />}
-                                </div>
-                                <div className={`font-bold text-base line-clamp-1 ${activeScenarioId === scenario.id ? 'text-slate-900' : 'text-slate-500'}`}>{scenario.name}</div>
-                                <div className="flex items-end gap-2 mt-1">
-                                    <span className="text-sm font-bold text-green-600">IRR {scenario.irr}</span>
-                                    <span className="text--[10px] text-slate-400 pb-0.5">NPV {scenario.financials.npv}</span>
-                                </div>
-                            </button>
-                        ))}
+                    {/* Header: AI Recommendation */}
+                    <div className="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+                         <div className="flex items-center gap-3">
+                             <div className="p-1.5 bg-yellow-100 rounded-full">
+                                <Zap className="w-5 h-5 text-yellow-600 fill-yellow-600" />
+                             </div>
+                             <div>
+                                 <h4 className="font-bold text-slate-900 text-lg leading-tight">🏆 AI 智能推薦最佳路徑</h4>
+                                 <p className="text-xs text-slate-500 font-medium">{activeScenario.name}</p>
+                             </div>
+                         </div>
+                         <div className="hidden sm:block text-right">
+                             <div className="text-xs text-slate-500">預估增值</div>
+                             <div className="text-green-600 font-bold">{report.projectedValue}</div>
+                         </div>
                     </div>
 
                     {/* Dashboard Content */}
-                    <div className="flex-1 overflow-y-auto p-6 grid lg:grid-cols-2 gap-8">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
                         
-                        {/* Financial Chart */}
-                        <div className="flex flex-col min-h-[300px]">
-                            <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5 text-green-600" />
-                                20 年財務模擬：現金流與回本點
-                            </h4>
-                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-1">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8}/>
-                                                <stop offset="95%" stopColor="#15803d" stopOpacity={0.9}/>
-                                            </linearGradient>
-                                            <filter id="lineShadow" height="130%">
-                                                <feDropShadow dx="1" dy="2" stdDeviation="2" floodColor="#d97706" floodOpacity="0.3" />
-                                            </filter>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="year" fontSize={11} tickLine={false} axisLine={false} tick={{fill: '#64748b'}} />
-                                        <YAxis 
-                                            yAxisId="left" 
-                                            fontSize={11} 
-                                            tickLine={false} 
-                                            axisLine={false} 
-                                            tickFormatter={(val) => `$${val}w`} 
-                                            tick={{fill: '#15803d'}}
-                                        />
-                                        <YAxis 
-                                            yAxisId="right" 
-                                            orientation="right" 
-                                            fontSize={11} 
-                                            tickLine={false} 
-                                            axisLine={false} 
-                                            tickFormatter={(val) => `$${val}w`}
-                                            tick={{fill: '#d97706'}}
-                                        />
-                                        <RechartsTooltip 
-                                            contentStyle={{ 
-                                                backgroundColor: 'rgba(15, 23, 42, 0.9)', 
-                                                borderRadius: '8px', 
-                                                border: 'none', 
-                                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)',
-                                                color: '#fff'
-                                            }}
-                                            itemStyle={{ color: '#fff', fontSize: '13px', padding: '2px 0' }}
-                                            formatter={(value: any, name: any) => [`$${value} 萬`, name]}
-                                            labelStyle={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}
-                                        />
-                                        <Legend 
-                                            wrapperStyle={{ fontSize: '12px', paddingTop: '15px' }} 
-                                            iconType="circle"
-                                        />
-                                        <Bar 
-                                            yAxisId="left" 
-                                            dataKey="cashflow" 
-                                            name="年度現金流" 
-                                            fill="url(#barGradient)" 
-                                            radius={[4, 4, 0, 0]} 
-                                            maxBarSize={40} 
-                                        />
-                                        <Line 
-                                            yAxisId="right" 
-                                            type="monotone" 
-                                            dataKey="cumulative" 
-                                            name="累計損益" 
-                                            stroke="#d97706" 
-                                            strokeWidth={3} 
-                                            dot={{ r: 0 }} 
-                                            activeDot={{ r: 6, strokeWidth: 0 }}
-                                            style={{ filter: 'url(#lineShadow)' }}
-                                        />
-                                    </ComposedChart>
-                                </ResponsiveContainer>
+                        {/* 1. Key Metrics Row - BIG DATA */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                                <div className="absolute right-0 top-0 p-3 opacity-10">
+                                    <TrendingUp className="w-8 h-8 text-green-600" />
+                                </div>
+                                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">內部報酬率 (IRR)</div>
+                                <div className="text-3xl font-bold text-green-600">{activeScenario.irr}</div>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                                <div className="absolute right-0 top-0 p-3 opacity-10">
+                                    <Coins className="w-8 h-8 text-blue-600" />
+                                </div>
+                                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">淨現值 (NPV)</div>
+                                <div className="text-2xl font-bold text-slate-900">{activeScenario.financials.npv}</div>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                                <div className="absolute right-0 top-0 p-3 opacity-10">
+                                    <Building2 className="w-8 h-8 text-amber-600" />
+                                </div>
+                                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">預估 CAPEX</div>
+                                <div className="text-2xl font-bold text-slate-900">{activeScenario.capex}</div>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
+                                <div className="absolute right-0 top-0 p-3 opacity-10">
+                                    <Leaf className="w-8 h-8 text-green-600" />
+                                </div>
+                                <div className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">投資回收期</div>
+                                <div className="text-2xl font-bold text-slate-900">{activeScenario.roiPeriod}</div>
                             </div>
                         </div>
 
-                        {/* Details & Geo Stats */}
-                        <div className="space-y-6">
+                        {/* 2. Chart & Geo Details Split */}
+                        <div className="grid lg:grid-cols-3 gap-6">
                             
-                            {/* Key Metrics */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
-                                    <div className="text-xs text-slate-500 mb-1">預估 CAPEX</div>
-                                    <div className="text-xl font-bold text-slate-900 group-hover:text-green-700">{activeScenario.capex}</div>
-                                </div>
-                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
-                                    <div className="text-xs text-slate-500 mb-1">投資回收期</div>
-                                    <div className="text-xl font-bold text-slate-900 group-hover:text-green-700">{activeScenario.roiPeriod}</div>
-                                </div>
-                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
-                                    <div className="text-xs text-slate-500 mb-1">年減碳量</div>
-                                    <div className="text-xl font-bold text-green-600">{activeScenario.carbonReduction}</div>
-                                </div>
-                                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm group hover:border-green-400 transition-colors">
-                                    <div className="text-xs text-slate-500 mb-1">淨現值 (NPV)</div>
-                                    <div className="text-xl font-bold text-green-600">{activeScenario.financials.npv}</div>
+                            {/* Left: Compact Financial Chart */}
+                            <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[280px]">
+                                <h4 className="font-bold text-slate-900 mb-4 text-sm flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-green-600" />
+                                    20 年累計淨現值趨勢 (Cumulative NPV)
+                                </h4>
+                                <div className="flex-1 w-full min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset={off} stopColor="#22c55e" stopOpacity={0.8} />
+                                                    <stop offset={off} stopColor="#ef4444" stopOpacity={0.8} />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="year" fontSize={10} tickLine={false} axisLine={false} tick={{fill: '#94a3b8'}} interval={2} />
+                                            <YAxis 
+                                                fontSize={10} 
+                                                tickLine={false} 
+                                                axisLine={false} 
+                                                tickFormatter={(val) => {
+                                                    if (val === 0) return '0';
+                                                    if (Math.abs(val) >= 10000) return `${(val/10000).toFixed(1)}億`;
+                                                    return `${val}萬`;
+                                                }} 
+                                                tick={{fill: '#94a3b8'}}
+                                            />
+                                            <RechartsTooltip 
+                                                contentStyle={{ 
+                                                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                                                    borderRadius: '8px', 
+                                                    border: 'none', 
+                                                    color: '#fff',
+                                                    fontSize: '12px'
+                                                }}
+                                                itemStyle={{ color: '#fff' }}
+                                                formatter={(value: any) => {
+                                                     if (Math.abs(value) >= 10000) return [`$${(value/10000).toFixed(2)} 億`, "累計損益"];
+                                                     return [`$${value} 萬`, "累計損益"];
+                                                }}
+                                                labelStyle={{ color: '#94a3b8', marginBottom: '4px' }}
+                                            />
+                                            <ReferenceLine y={0} stroke="#64748b" strokeDasharray="3 3" />
+                                            <Area 
+                                                type="monotone" 
+                                                dataKey="cumulative" 
+                                                stroke="#0f172a" 
+                                                strokeWidth={2}
+                                                fill="url(#splitColor)" 
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
                                 </div>
                             </div>
 
-                            {/* Geo-AI Insights */}
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                <h5 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-1">
-                                    <Map className="w-3 h-3" /> Geo-AI 現場分析數據
-                                </h5>
-                                <div className="grid grid-cols-2 gap-y-3 text-sm">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-slate-500">年日照潛力</span>
-                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">{report.geoAnalysis.solarPotential}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center pl-2">
-                                        <span className="text-slate-500">電網距離</span>
-                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">{report.geoAnalysis.gridDistance}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-slate-500">屋頂結構</span>
-                                        <span className="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">{report.geoAnalysis.roofCondition}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center pl-2">
-                                        <span className="text-slate-500">風險係數</span>
-                                        <span className="font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200">{report.geoAnalysis.climateRisk}</span>
+                            {/* Right: Geo-AI Stats & Description */}
+                            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 flex flex-col justify-between">
+                                <div>
+                                    <h5 className="text-xs font-bold text-slate-500 uppercase mb-4 flex items-center gap-1">
+                                        <Map className="w-3 h-3" /> Geo-AI 現場數據
+                                    </h5>
+                                    <div className="space-y-3 text-sm">
+                                        <div className="flex justify-between border-b border-slate-200 pb-2">
+                                            <span className="text-slate-500">年日照潛力</span>
+                                            <span className="font-bold text-slate-800">{report.geoAnalysis.solarPotential}</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-200 pb-2">
+                                            <span className="text-slate-500">電網距離</span>
+                                            <span className="font-bold text-slate-800">{report.geoAnalysis.gridDistance}</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-200 pb-2">
+                                            <span className="text-slate-500">屋頂結構</span>
+                                            <span className="font-bold text-slate-800">{report.geoAnalysis.roofCondition}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500">饋線容量</span>
+                                            <span className="font-bold text-slate-800">{report.geoAnalysis.gridCapacity}</span>
+                                        </div>
                                     </div>
                                 </div>
+                                
+                                <div className="mt-4 pt-4 border-t border-slate-200">
+                                    <h5 className="text-xs font-bold text-slate-500 uppercase mb-2">方案說明</h5>
+                                    <p className="text-xs text-slate-600 leading-relaxed">
+                                        {activeScenario.description}
+                                    </p>
+                                </div>
                             </div>
-                            
-                            <p className="text-sm text-slate-600 leading-relaxed bg-blue-50/50 p-4 rounded-lg border border-blue-100">
-                                <span className="font-bold text-blue-800 block mb-1 flex items-center gap-1"><Check className="w-3 h-3"/> 方案說明：</span>
-                                {activeScenario.description}
-                            </p>
+
                         </div>
-
                     </div>
                 </div>
             )}

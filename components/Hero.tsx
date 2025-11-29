@@ -1,7 +1,15 @@
+
 import React from 'react';
 import { ArrowRight, Leaf, Building2, TrendingUp } from 'lucide-react';
 
 export const Hero: React.FC = () => {
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <section className="relative bg-slate-900 text-white overflow-hidden pt-32 pb-32">
       {/* Abstract Background */}
@@ -33,13 +41,19 @@ export const Hero: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row items-start gap-4">
-              <a href="#demo" className="w-full sm:w-auto px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 transform hover:-translate-y-1">
+              <button 
+                onClick={() => scrollToSection('demo')}
+                className="w-full sm:w-auto px-8 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 transform hover:-translate-y-1"
+              >
                 立即試算轉型潛力
                 <ArrowRight className="w-5 h-5" />
-              </a>
-              <a href="#marketplace" className="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-sm rounded-lg font-bold transition-all flex items-center justify-center gap-2">
+              </button>
+              <button 
+                onClick={() => scrollToSection('marketplace')}
+                className="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-sm rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+              >
                 瀏覽交易市場
-              </a>
+              </button>
             </div>
           </div>
 

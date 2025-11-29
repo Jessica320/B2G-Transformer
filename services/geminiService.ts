@@ -11,7 +11,7 @@ if (apiKey) {
 export const generateValuationReport = async (request: AssetValuationRequest): Promise<TransformationReport> => {
   const modelId = "gemini-2.5-flash";
 
-  // Mock Scenarios with Realistic Cash Flows (Initial negative Capex, then positive returns)
+  // Mock Scenarios with Realistic Cash Flows
   const mockScenarios: Scenario[] = [
     {
       id: "A",
@@ -39,7 +39,7 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
       carbonReduction: "680 tCO2e/年",
       financials: {
         capexEstimate: "2,800 萬",
-        npv: "4,500 萬",
+        npv: "0.45 億", 
         yearlyCashFlow: [-2800, 650, 680, 720, 750, 780, 800, 820, 850, 880, 900, 920, 950, 980, 1000, 1020, 1050, 1080, 1100, 1120],
         revenueStreams: ["售電收入", "儲能輔助服務 (AFC)", "需量反應回饋"]
       }
@@ -50,12 +50,12 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
       description: "進行建築外殼節能改善與智慧能源管理系統 (BEMS) 導入，大幅提升資產估值與租金溢價。",
       irr: "7.8%",
       roiPeriod: "8.5 年",
-      capex: "5,500 萬",
+      capex: "1.5 億", 
       carbonReduction: "920 tCO2e/年",
       financials: {
-        capexEstimate: "5,500 萬",
-        npv: "6,200 萬",
-        yearlyCashFlow: [-5500, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100, 2200, 2300],
+        capexEstimate: "1.5 億",
+        npv: "2.1 億",
+        yearlyCashFlow: [-15000, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900, 2000, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900, 3000],
         revenueStreams: ["綠色租金溢價", "節省電費", "碳權交易", "容積獎勵"]
       }
     }
@@ -63,14 +63,14 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
 
   // Mock Data Definition (Fallback)
   const mockReport: TransformationReport = {
-    originalValue: "1.2 億 TWD",
-    projectedValue: "1.65 億 TWD",
+    originalValue: "1.2 億",
+    projectedValue: "1.65 億",
     bestScenarioId: "B",
     policyIncentives: ["經濟部能源署再生能源躉購機制", "中小企業綠色轉型補助計畫", "工業局低碳製程改善補助"],
     geoAnalysis: {
       solarPotential: "1,280 kWh/kWp (優良)",
       gridDistance: "約 350 公尺 (併網容易)",
-      roofCondition: "RC 結構完整，適合乘載",
+      roofCondition: "RC 結構完整",
       climateRisk: "低淹水潛勢區",
       sunlightHours: "1,150 小時/年",
       gridCapacity: "饋線餘裕充足 (>5MW)"
@@ -80,7 +80,6 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
 
   if (!ai) {
     console.warn("No API Key found, using mock data.");
-    // No artificial delay here, frontend handles animation timing
     return mockReport;
   }
 
@@ -100,9 +99,12 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
     2. 光充儲整合 (Solar + Storage) - 推薦方案
     3. 綠建築/智慧工廠改建 (Green Building/Smart Factory)
 
-    JSON 欄位要求：
-    - yearlyCashFlow: 請提供包含「初始投資(負值)」與後續19年收益的數字陣列 (共20個數字，單位：萬台幣)。
-    - geoAnalysis: 請模擬生成具體的數據，如 "1,250 kWh/kWp"。
+    重要格式要求：
+    - 金額單位：若金額超過 10000 萬 (1億)，請務必使用「億」為單位 (例如 "1.5 億")；若小於 1 億，使用「萬」為單位 (例如 "2,800 萬")。
+    - npv, capex: 請依照上述規則回傳字串。
+    - yearlyCashFlow: 請提供包含「初始投資(負值)」與後續19年收益的數字陣列 (共20個數字，單位：萬台幣，純數字)。
+    - geoAnalysis: 請模擬生成具體的數據。
+    - bestScenarioId: 請指定推薦方案的 ID (通常是 B)。
   `;
 
   try {
