@@ -12,6 +12,7 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
   const modelId = "gemini-2.5-flash";
 
   // Mock Scenarios with Realistic Cash Flows
+  // 數據修正：採用台灣市場真實行情 (光電投報率約 8-10%, 儲能約 10-12%)
   const mockScenarios: Scenario[] = [
     {
       id: "A",
@@ -62,6 +63,7 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
   ];
 
   // Mock Data Definition (Fallback)
+  // 法規修正：依據台灣常見乙種工業區標準 (建蔽率70%, 容積率210%)
   const mockReport: TransformationReport = {
     originalValue: "1.2 億",
     projectedValue: "1.65 億",
@@ -70,10 +72,22 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
     geoAnalysis: {
       solarPotential: "1,280 kWh/kWp (優良)",
       gridDistance: "約 350 公尺 (併網容易)",
-      roofCondition: "RC 結構完整",
-      climateRisk: "低淹水潛勢區",
+      roofCondition: "RC 結構完整，可承重",
+      climateRisk: "低淹水潛勢區 (NCDR圖資)",
       sunlightHours: "1,150 小時/年",
       gridCapacity: "饋線餘裕充足 (>5MW)"
+    },
+    policyAnalysis: {
+      zoningType: "乙種工業區 (Industrial Zone Type B)",
+      complianceStatus: "compliant",
+      regulations: [
+        "法定建蔽率 70%", 
+        "法定容積率 210%", 
+        "需符合《都市計畫法臺灣省施行細則》",
+        "屋頂光電免計入建築高度"
+      ],
+      restrictions: "非都市計畫區內，需注意排水計畫審查",
+      subsidyEligibility: ["經濟部太陽光電補助", "工業局低碳轉型專案貸款"]
     },
     scenarios: mockScenarios
   };
@@ -83,28 +97,38 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
     return mockReport;
   }
 
+  // Optimized Prompt with Expert Persona and Regulatory Rules
   const prompt = `
-    你現在是「B2G Asset Transformer」平台的 AI 核心引擎。
+    請扮演「台灣專業建築師」與「土地開發代書」的角色，結合「B2G Asset Transformer」的 AI 運算能力。
     請分析以下台灣資產，並生成 3 種不同的綠色轉型情境方案 (Scenarios)。
     
-    資產參數：
+    【輸入資產參數】
     - 類型：${request.assetType}
     - 地點：${request.location}
     - 面積：${request.area}
     - 屋齡：${request.buildingAge}
     - 目前用途：${request.currentUsage}
 
-    請生成 JSON 格式回應，包含以下三個方案的詳細財務預測：
-    1. 純屋頂光電 (Solar Only)
-    2. 光充儲整合 (Solar + Storage) - 推薦方案
-    3. 綠建築/智慧工廠改建 (Green Building/Smart Factory)
+    【分析邏輯與法規限制 (Strict Compliance)】
+    1. 土地分區判斷：
+       - 若地點包含「工業區」、「加工出口區」，請預設為「乙種工業區」或「產業專用區」。
+         -> 標準參數：建蔽率 70% / 容積率 210% (切勿填寫 300% 以上，除非是特殊商業區)。
+       - 若地點為「科學園區」，依據該園區特別條例。
+       - 若為「商辦」，容積率可設為 300%~560% (依路寬而定)。
+    2. 財務估算：
+       - 太陽能造價約 5-6 萬/kW。
+       - 儲能造價約 2.5-3 萬/kWh。
+       - 請產生合理的 CAPEX 與 IRR (通常在 6%~12% 之間)。
+    3. 法規引用：
+       - 請引用真實法規名稱，如《都市計畫法》、《再生能源發展條例》。
 
-    重要格式要求：
-    - 金額單位：若金額超過 10000 萬 (1億)，請務必使用「億」為單位 (例如 "1.5 億")；若小於 1 億，使用「萬」為單位 (例如 "2,800 萬")。
-    - npv, capex: 請依照上述規則回傳字串。
-    - yearlyCashFlow: 請提供包含「初始投資(負值)」與後續19年收益的數字陣列 (共20個數字，單位：萬台幣，純數字)。
-    - geoAnalysis: 請模擬生成具體的數據。
-    - bestScenarioId: 請指定推薦方案的 ID (通常是 B)。
+    【輸出格式要求 (JSON)】
+    請生成 JSON 格式回應，包含 bestScenarioId (推薦方案ID)。
+    
+    - policyAnalysis: 必須包含真實的 zoningType, regulations (列出建蔽/容積率), restrictions。
+    - scenarios: 包含 3 個方案 (A: Solar, B: Storage, C: Renovation)。
+    - 金額單位：若金額超過 1 億，使用「億」；若小於 1 億，使用「萬」。
+    - yearlyCashFlow: 提供 20 年現金流陣列 (數值)。
   `;
 
   try {
@@ -129,6 +153,16 @@ export const generateValuationReport = async (request: AssetValuationRequest): P
                 climateRisk: { type: Type.STRING },
                 sunlightHours: { type: Type.STRING },
                 gridCapacity: { type: Type.STRING }
+              }
+            },
+            policyAnalysis: {
+              type: Type.OBJECT,
+              properties: {
+                zoningType: { type: Type.STRING },
+                complianceStatus: { type: Type.STRING, enum: ["compliant", "warning", "non-compliant"] },
+                regulations: { type: Type.ARRAY, items: { type: Type.STRING } },
+                restrictions: { type: Type.STRING },
+                subsidyEligibility: { type: Type.ARRAY, items: { type: Type.STRING } }
               }
             },
             scenarios: {

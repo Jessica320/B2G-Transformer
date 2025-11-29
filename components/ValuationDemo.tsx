@@ -4,7 +4,7 @@ import { generateValuationReport } from '../services/geminiService';
 import { AssetValuationRequest, TransformationReport, AnalysisStatus } from '../types';
 import { 
   Loader2, Zap, Building2, Map, Scale, BarChart3, 
-  MapPin, TrendingUp, Coins, Leaf
+  MapPin, TrendingUp, Coins, Leaf, CheckCircle2, AlertTriangle, FileCheck, ScrollText
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine
@@ -307,11 +307,11 @@ export const ValuationDemo: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* 2. Chart & Geo Details Split */}
+                        {/* 2. Chart & Details Split */}
                         <div className="grid lg:grid-cols-3 gap-6">
                             
                             {/* Left: Compact Financial Chart */}
-                            <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[280px]">
+                            <div className="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[400px]">
                                 <h4 className="font-bold text-slate-900 mb-4 text-sm flex items-center gap-2">
                                     <TrendingUp className="w-4 h-4 text-green-600" />
                                     20 年累計淨現值趨勢 (Cumulative NPV)
@@ -364,11 +364,19 @@ export const ValuationDemo: React.FC = () => {
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
+                                <div className="mt-4 pt-4 border-t border-slate-100">
+                                    <h5 className="text-xs font-bold text-slate-500 uppercase mb-2">方案說明</h5>
+                                    <p className="text-xs text-slate-600 leading-relaxed">
+                                        {activeScenario.description}
+                                    </p>
+                                </div>
                             </div>
 
-                            {/* Right: Geo-AI Stats & Description */}
-                            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 flex flex-col justify-between">
-                                <div>
+                            {/* Right Column: Geo + Policy */}
+                            <div className="flex flex-col gap-4">
+                                
+                                {/* Geo-AI Stats */}
+                                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
                                     <h5 className="text-xs font-bold text-slate-500 uppercase mb-4 flex items-center gap-1">
                                         <Map className="w-3 h-3" /> Geo-AI 現場數據
                                     </h5>
@@ -381,25 +389,67 @@ export const ValuationDemo: React.FC = () => {
                                             <span className="text-slate-500">電網距離</span>
                                             <span className="font-bold text-slate-800">{report.geoAnalysis.gridDistance}</span>
                                         </div>
-                                        <div className="flex justify-between border-b border-slate-200 pb-2">
-                                            <span className="text-slate-500">屋頂結構</span>
-                                            <span className="font-bold text-slate-800">{report.geoAnalysis.roofCondition}</span>
-                                        </div>
                                         <div className="flex justify-between">
                                             <span className="text-slate-500">饋線容量</span>
                                             <span className="font-bold text-slate-800">{report.geoAnalysis.gridCapacity}</span>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <div className="mt-4 pt-4 border-t border-slate-200">
-                                    <h5 className="text-xs font-bold text-slate-500 uppercase mb-2">方案說明</h5>
-                                    <p className="text-xs text-slate-600 leading-relaxed">
-                                        {activeScenario.description}
-                                    </p>
-                                </div>
-                            </div>
 
+                                {/* PolicyAI Card (IMPROVED) */}
+                                <div className="bg-white p-6 rounded-2xl border border-blue-100 shadow-md flex-1 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                                    
+                                    <h5 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4 relative z-10">
+                                        <div className="p-2 bg-blue-100 rounded-lg text-blue-600 shadow-sm">
+                                            <Scale className="w-5 h-5" />
+                                        </div>
+                                        PolicyAI 法規快篩
+                                    </h5>
+                                    
+                                    {/* Verdict Block */}
+                                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 mb-5 flex items-center justify-between relative z-10">
+                                        <div>
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">土地使用分區判定</div>
+                                            <div className="text-xl font-bold text-blue-800">{report.policyAnalysis.zoningType.split(' ')[0]}</div>
+                                        </div>
+                                        <div className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                            <CheckCircle2 size={14} /> 合規
+                                        </div>
+                                    </div>
+
+                                    {/* Regulations */}
+                                    <div className="space-y-3 mb-5 relative z-10">
+                                        {/* Restriction Warning */}
+                                        <div className="flex items-start gap-3 p-3 bg-amber-50 text-amber-800 rounded-lg text-xs border border-amber-100 leading-relaxed">
+                                            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                                            {report.policyAnalysis.restrictions}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {report.policyAnalysis.regulations.map((reg, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 text-xs text-slate-600">
+                                                    <ScrollText className="w-3 h-3 mt-0.5 text-blue-400 shrink-0" />
+                                                    {reg}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Subsidies */}
+                                    <div className="pt-4 border-t border-slate-100 relative z-10">
+                                        <h6 className="text-[10px] font-bold text-slate-400 uppercase mb-3">符合補助資格</h6>
+                                        <div className="flex flex-wrap gap-2">
+                                            {report.policyAnalysis.subsidyEligibility.map((sub, idx) => (
+                                                <span key={idx} className="px-3 py-1 bg-white text-slate-600 border border-slate-200 rounded-full text-[11px] font-semibold flex items-center gap-1.5 shadow-sm hover:border-green-300 hover:text-green-700 transition-colors cursor-default">
+                                                    <FileCheck className="w-3 h-3 text-green-500" /> {sub}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
                         </div>
                     </div>
                 </div>

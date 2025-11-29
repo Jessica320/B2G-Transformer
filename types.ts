@@ -17,6 +17,14 @@ export interface GeoAnalysis {
   gridCapacity: string; // 饋線容量餘裕
 }
 
+export interface PolicyAnalysis {
+  zoningType: string; // e.g. "乙種工業區"
+  complianceStatus: 'compliant' | 'warning' | 'non-compliant'; // 合規狀態
+  regulations: string[]; // e.g. ["建蔽率 70%", "容積率 210%"]
+  restrictions: string; // e.g. "需申請雜項執照"
+  subsidyEligibility: string[]; // e.g. ["工廠綠能化補助", "躉購費率加成"]
+}
+
 export interface FinancialAnalysis {
   capexEstimate: string; // 預估建置成本
   npv: string; // 淨現值
@@ -41,6 +49,7 @@ export interface TransformationReport {
   bestScenarioId: string;
   policyIncentives: string[];
   geoAnalysis: GeoAnalysis;
+  policyAnalysis: PolicyAnalysis; // 新增法規分析模組
   scenarios: Scenario[]; // 多個方案供比較
 }
 
